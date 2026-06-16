@@ -1,0 +1,57 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: hospital_demo
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_HOST_AUTH_METHOD: md5
+    volumes:
+      - ./postgres/init.sql:/docker-entrypoint-initdb.d/01_init.sql
+      - ./postgres/audit_schema.sql:/docker-entrypoint-initdb.d/02_audit.sql
+      - ./postgres/seed_data.sql:/docker-entrypoint-initdb.d/03_seed.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d hospital_demo"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  pgbouncer:
+    image: edoburu/pgbouncer:v1.23.1-p2
+    volumes:
+      - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini
+      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt
+    depends_on:
+      postgres:
+        condition: service_healthy
+  demo:
+    build:
+      context: .
+      dockerfile: scalple/Dockerfile
+    environment:
+      APP_DB_URL: postgresql://app_user:app_password@pgbouncer:6432/hospital_demo
+      AUDIT_DB_URL: postgresql://audit_writer:audit_password@postgres:5432/hospital_demo
+      AUDIT_READER_URL: postgresql://audit_reader:audit_password@postgres:5432/hospital_demo
+      POSTGRES_DB_URL: postgresql://postgres:postgres@postgres:5432/hospital_demo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_started
+
+  e2e:
+    build:
+      context: .
+      dockerfile: scalple/Dockerfile
+    command: python e2e_test.py
+    volumes:
+      - ./e2e_test.py:/app/e2e_test.py
+    environment:
+      APP_DB_URL: postgresql://app_user:app_password@pgbouncer:6432/hospital_demo
+      AUDIT_DB_URL: postgresql://audit_writer:audit_password@postgres:5432/hospital_demo
+      AUDIT_READER_URL: postgresql://audit_reader:audit_password@postgres:5432/hospital_demo
+      POSTGRES_DB_URL: postgresql://postgres:postgres@postgres:5432/hospital_demo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      pgbouncer:
+        condition: service_started

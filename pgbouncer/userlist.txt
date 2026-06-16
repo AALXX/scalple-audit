@@ -1,0 +1,4 @@
+; PgBouncer auth file. The hash is md5(password + username) prefixed with "md5".
+; This matches the md5 password stored for app_user in postgres/init.sql, so
+; PgBouncer can authenticate clients and connect to the backend end-to-end.
+"app_user" "md5e674212889c04c6faace937884abb736"
